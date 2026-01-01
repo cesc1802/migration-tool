@@ -2,11 +2,11 @@
 
 ## Project Overview
 
-Golang migration CLI tool - Phase 1-2 complete. A cross-platform database migration tool with configuration system, validation, and type-safe accessors.
+Golang migration CLI tool - Phase 1-4 complete. A cross-platform database migration tool with configuration system, validation, migration execution, and status tracking.
 
 **Module:** `github.com/cesc1802/migrate-tool`
 **Go Version:** 1.25.1
-**Total Files:** 13+ files (expanded with config subsystem)
+**Total Files:** 30+ files (expanded with migrator & commands)
 
 ---
 
@@ -20,15 +20,31 @@ Golang migration CLI tool - Phase 1-2 complete. A cross-platform database migrat
 ├── internal/
 │   ├── cmd/
 │   │   ├── root.go              # Root command & config initialization
-│   │   ├── root_test.go         # Unit tests for root command
-│   │   └── config_show.go       # "config show" command with masking
-│   └── config/
-│       ├── config.go            # Config struct, Load(), Get(), GetEnv()
-│       ├── env_expand.go        # ExpandEnvVars() for ${VAR} pattern
-│       └── validation.go        # Validate() with go-playground/validator
+│   │   ├── config_show.go       # "config show" command
+│   │   ├── up.go                # "up" command - apply migrations
+│   │   ├── down.go              # "down" command - rollback migrations
+│   │   ├── status.go            # "status" command - show migration status
+│   │   ├── history.go           # "history" command - list migrations
+│   │   ├── *_test.go            # Command tests
+│   │   └── root_test.go         # Root command tests
+│   ├── config/
+│   │   ├── config.go            # Config struct, Load(), Get(), GetEnv()
+│   │   ├── env_expand.go        # ExpandEnvVars() for ${VAR} pattern
+│   │   ├── validation.go        # Validate() with go-playground/validator
+│   │   └── *_test.go            # Config tests
+│   ├── migrator/
+│   │   ├── migrator.go          # Migrator struct, New(), Up(), Down(), Close()
+│   │   ├── status.go            # Status methods & helpers
+│   │   └── *_test.go            # Migrator tests
+│   └── source/
+│       └── singlefile/
+│           ├── parser.go        # Migration file parser
+│           ├── driver.go        # source.Driver implementation
+│           └── *_test.go        # Parser & driver tests
+├── migrations/
+│   └── 000001_create_users.sql  # Sample migration
 ├── Makefile                      # Build & development tasks
 ├── go.mod                        # Module dependencies
-├── go.sum                        # Go dependencies checksums
 ├── migrate-tool.example.yaml     # Configuration template
 ├── .gitignore                    # Git ignore rules
 └── .repomixignore               # Repomix ignore rules
@@ -88,6 +104,57 @@ Golang migration CLI tool - Phase 1-2 complete. A cross-platform database migrat
   - `TestSetVersionInfo` - Version information setting
   - `TestExecute` - Command execution without errors
   - `TestRootCmdExists` - Root command initialization
+
+### 6. Migrator Package (internal/migrator/) - Phase 4
+**Purpose:** Core migration execution logic wrapping golang-migrate
+
+**Files:**
+- **migrator.go:**
+  - `Migrator` struct: wraps golang-migrate.Migrate instance
+  - `New(envName)` - creates Migrator with config validation
+  - `Up(steps)` - apply pending migrations (steps=0 means all)
+  - `Down(steps)` - rollback migrations (default: 1 for safety)
+  - `Force(version)` - fix dirty state
+  - `Goto(version)` - migrate to specific version
+  - `Close()` - cleanup resources
+  - Helper methods: `RequiresConfirmation()`, `EnvName()`, `Source()`
+
+- **status.go:**
+  - `Status` struct: Version, Dirty, Pending, Applied, Total
+  - `Status()` method - get current migration status
+  - `countMigrations()` - helper to count pending/applied/total
+  - `MigrationInfo` struct - single migration entry
+  - `GetMigrationList(version)` - list all migrations with applied status
+
+### 7. Migration Commands (internal/cmd/) - Phase 4
+**Purpose:** CLI subcommands for migration operations
+
+**Files:**
+- **up.go:**
+  - Command: `migrate-tool up [--steps=N] --env=ENV`
+  - Flag: `--steps` (default: 0 = apply all)
+  - Behavior: Gets status, applies N/all pending migrations, shows result
+
+- **down.go:**
+  - Command: `migrate-tool down [--steps=N] --env=ENV`
+  - Flag: `--steps` (default: 1 = rollback 1 for safety)
+  - Behavior: Gets status, rolls back N migrations, shows result
+
+- **status.go:**
+  - Command: `migrate-tool status --env=ENV`
+  - Output: Current version, dirty state, applied/total, pending count
+  - Warnings: Shows dirty state help text if DB in dirty state
+
+- **history.go:**
+  - Command: `migrate-tool history [--limit=N] --env=ENV`
+  - Flag: `--limit` (default: 10)
+  - Output: List of migrations with [x] for applied, [ ] for pending
+  - Pagination: Shows "... and N more" if exceeds limit
+
+**Test Coverage (up_test.go, down_test.go, status_test.go, history_test.go):**
+  - Command registration verification
+  - Flag existence & defaults
+  - Error handling for missing config
 
 ---
 
@@ -246,10 +313,32 @@ make clean          # Remove bin/ directory
 - Registered with golang-migrate driver registry as "singlefile"
 - Sample migration file: migrations/000001_create_users.sql (users table DDL)
 
+## Completed in Phase 4
+- Core migrator package (internal/migrator/)
+  - `Migrator` struct wrapping golang-migrate instance
+  - `New(envName)` - creates Migrator with config loading & validation
+  - `Up()` method with step control (0=all, N>0=N steps)
+  - `Down()` method with safety default (1 step)
+  - `Force()`, `Goto()` for advanced migration control
+  - Status tracking with `Status()` returning version/dirty/pending/applied/total
+  - `GetMigrationList()` for history display with applied status markers
+  - Database driver registration: MySQL, PostgreSQL, SQLite3
+- Four migration CLI commands:
+  - `up [--steps=N]` - Apply migrations with optional step limit
+  - `down [--steps=N]` - Rollback migrations (default: 1 step)
+  - `status` - Display current migration status & warnings
+  - `history [--limit=N]` - Show migration list with applied markers
+- Command tests (16 test cases)
+  - Command registration verification
+  - Flag defaults & types
+  - Error handling for missing config
+- Status struct with counts: Applied, Pending, Total, Version, Dirty
+- Safety features: dirty state detection & warning messages
+
 ---
 
 ## Next Phases
-- Phase 4: Core migration commands (up, down, status)
-- Phase 5-6: Utility & advanced commands
-- Phase 7-8: Interactive UI & release
+- Phase 5: Advanced commands (force, goto, undo)
+- Phase 6: Interactive confirmation & dry-run mode
+- Phase 7-8: UI enhancements & release
 

@@ -34,7 +34,8 @@ project/
 #### Package Naming
 - Use lowercase, single-word package names when possible
 - Use `internal/` for non-exported packages
-- Package names should describe their purpose (e.g., `cmd`, `config`, `driver`)
+- Package names should describe their purpose (e.g., `cmd`, `config`, `migrator`)
+- Package organization by feature: migration logic in `migrator/`, CLI commands in `cmd/`
 
 ### Import Organization
 ```go
@@ -130,6 +131,91 @@ confirmation := viper.GetBool("environments." + envName + ".require_confirmation
 - Pattern: `MIGRATE_TOOL_ENVIRONMENTS_DEV_DATABASE_URL`
 - Viper auto-converts underscores to nested keys
 - Case-insensitive
+
+---
+
+## Migrator Package Standards (Phase 4)
+
+### Migrator Design Pattern
+```go
+// Migrator wraps golang-migrate with our config system
+type Migrator struct {
+	m            *migrate.Migrate
+	env          config.Environment
+	envName      string
+	sourceDriver source.Driver
+}
+
+// Factory function loads config, creates source driver, initializes migrator
+func New(envName string) (*Migrator, error) {
+	// 1. Load configuration
+	// 2. Validate environment exists
+	// 3. Create source driver with migrations path
+	// 4. Initialize golang-migrate instance with database URL
+	// 5. Return wrapped Migrator
+}
+
+// Always cleanup with defer
+defer mg.Close()
+```
+
+### Command Handler Pattern
+```go
+// Command flag variables scoped at package level
+var (
+	upSteps int
+	downSteps int
+	historyLimit int
+)
+
+// Command defined as package-level variable
+var upCmd = &cobra.Command{
+	Use:   "up",
+	Short: "Brief description",
+	Long:  "Longer description",
+	RunE:  runUp,  // Function pointer to handler
+}
+
+// Handler function
+func runUp(cmd *cobra.Command, args []string) error {
+	// 1. Create Migrator instance
+	// 2. Get current status
+	// 3. Perform operation
+	// 4. Display results
+	// 5. Return error if any
+}
+
+// Register command in init()
+func init() {
+	upCmd.Flags().IntVar(&upSteps, "steps", 0, "Help text")
+	rootCmd.AddCommand(upCmd)
+}
+```
+
+### Status Struct Pattern
+```go
+// Status represents migration state at a point in time
+type Status struct {
+	Version uint  // Current applied version (0 = no migrations)
+	Dirty   bool  // Database in dirty state (migration failed)
+	Pending int   // Migrations not yet applied
+	Applied int   // Migrations already applied
+	Total   int   // Total migrations in source
+}
+
+// Status() method counts migrations by comparing against current version
+func (mg *Migrator) Status() (*Status, error) {
+	// Get current version from database
+	// Count pending/applied/total from source driver
+	// Return Status struct
+}
+```
+
+### Safety Defaults
+- **Down command:** Default to 1 step (not all) to prevent accidental data loss
+- **Force command:** Require explicit confirmation (Phase 7)
+- **Status output:** Show dirty state warning with recovery instructions
+- **History display:** Paginate results with "... and N more" indicator
 
 ---
 
