@@ -2,11 +2,11 @@
 
 ## Project Overview
 
-Golang migration CLI tool - Phase 1 project setup. A cross-platform database migration tool with single-file up/down support.
+Golang migration CLI tool - Phase 1-2 complete. A cross-platform database migration tool with configuration system, validation, and type-safe accessors.
 
 **Module:** `github.com/cesc1802/migrate-tool`
 **Go Version:** 1.25.1
-**Total Files:** 8 files (2,194 tokens)
+**Total Files:** 13+ files (expanded with config subsystem)
 
 ---
 
@@ -18,9 +18,14 @@ Golang migration CLI tool - Phase 1 project setup. A cross-platform database mig
 │   └── migrate-tool/
 │       └── main.go              # CLI entry point
 ├── internal/
-│   └── cmd/
-│       ├── root.go              # Root command & config initialization
-│       └── root_test.go          # Unit tests for root command
+│   ├── cmd/
+│   │   ├── root.go              # Root command & config initialization
+│   │   ├── root_test.go         # Unit tests for root command
+│   │   └── config_show.go       # "config show" command with masking
+│   └── config/
+│       ├── config.go            # Config struct, Load(), Get(), GetEnv()
+│       ├── env_expand.go        # ExpandEnvVars() for ${VAR} pattern
+│       └── validation.go        # Validate() with go-playground/validator
 ├── Makefile                      # Build & development tasks
 ├── go.mod                        # Module dependencies
 ├── go.sum                        # Go dependencies checksums
@@ -47,8 +52,37 @@ Golang migration CLI tool - Phase 1 project setup. A cross-platform database mig
   - Viper configuration management (YAML config + environment variables)
   - Persistent flags: `--config` (config file path), `--env` (environment name, default: "dev")
   - Auto-config initialization on startup
+  - Helper functions: `GetEnvName()`, `IsConfigLoaded()`
 
-### 3. Testing (internal/cmd/root_test.go)
+### 3. Configuration System (internal/config/)
+**Purpose:** Type-safe config loading, validation, and environment variable expansion
+
+**Files:**
+- **config.go:**
+  - `Config` struct with Environments (map[string]Environment) & Defaults
+  - `Environment` struct: DatabaseURL, MigrationsPath, RequireConfirmation
+  - `Load()` - loads from Viper, applies defaults, expands env vars, validates (thread-safe with sync.Once)
+  - `Get()` - returns loaded config
+  - `GetEnv(name)` - retrieves specific environment config
+  - `ResetForTesting()` - test utility
+
+- **env_expand.go:**
+  - `ExpandEnvVars(s)` - replaces `${VAR}` patterns with environment variable values
+  - Preserves unexpanded patterns if env var not found
+
+- **validation.go:**
+  - `Validate(c)` - validates config using go-playground/validator
+  - Checks: environments required, min 1, database_url required per env
+  - Custom validation: detects unexpanded env vars
+  - User-friendly error messages via `formatValidationError()`
+
+### 4. Configuration Command (internal/cmd/config_show.go)
+- **Purpose:** Display current configuration with security masking
+- **Commands:**
+  - `config show` - displays all environments and defaults
+  - Password masking in database URLs (e.g., `postgres://user:***@host:port/db`)
+
+### 5. Testing (internal/cmd/root_test.go)
 - **Purpose:** Unit tests for root command functionality
 - **Test Coverage:**
   - `TestSetVersionInfo` - Version information setting
@@ -137,17 +171,28 @@ make clean          # Remove bin/ directory
 - Persistent flags shared across subcommands
 - Viper handles config file + env var merging
 - Config initialized before command execution
+- Subcommands use type-safe config.Load() instead of Viper directly
 
 ### Error Handling
 - CLI exits with code 1 on errors
 - Propagates errors up to main for exit handling
+- Config validation errors include helpful, user-friendly messages
 
 ### Configuration Pattern
-1. Check for `--config` flag
-2. Fall back to `migrate-tool.yaml` in current directory
-3. Load YAML configuration
-4. Merge environment variables
-5. Access config via Viper during command execution
+1. Viper loads YAML + env vars (in initConfig)
+2. Command calls config.Load() for type-safe access
+3. Load() unmarshals Viper data into Config struct
+4. Applies defaults (migrations_path fallback chain)
+5. Expands ${VAR} environment variables
+6. Validates structure with go-playground/validator
+7. Detects unexpanded env vars and reports them
+8. Thread-safe via sync.Once (single initialization)
+
+### Environment Variable Expansion
+- Pattern: `${VAR}` in YAML values
+- Expanded during Load() via ExpandEnvVars()
+- Unexpanded patterns preserved if env var not found
+- Custom validation detects incomplete expansions and fails early
 
 ---
 
@@ -159,10 +204,27 @@ make clean          # Remove bin/ directory
 - Unit tests for core functionality
 - Proper gitignore setup for Go projects
 
+## Completed in Phase 2
+- Configuration package (internal/config/)
+  - Type-safe Config & Environment structs with validation tags
+  - Thread-safe Load() with sync.Once pattern
+  - GetEnv() for environment-specific access
+  - Type-safe defaults application
+  - Full validation with helpful error messages
+- Environment variable expansion (${VAR} pattern)
+  - Regex-based pattern matching
+  - Graceful fallback for unset variables
+  - Validation to catch incomplete expansions
+- Configuration command (config show)
+  - Display all environments and defaults
+  - Secure password masking in database URLs
+- Helper functions in root.go
+  - GetEnvName() - current environment name
+  - IsConfigLoaded() - config file status check
+
 ---
 
 ## Next Phases
-- Phase 2: Configuration schema & validation
 - Phase 3: Source driver implementation
 - Phase 4: Core migration commands (up, down, status)
 - Phase 5-6: Utility & advanced commands

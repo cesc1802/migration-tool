@@ -1,6 +1,6 @@
 # System Architecture
 
-## Golang Migration CLI Tool - Phase 1
+## Golang Migration CLI Tool - Phase 1-2
 
 ---
 
@@ -27,31 +27,42 @@
                              │
                 ┌────────────┴────────────┐
                 ▼                         ▼
-        ┌───────────────┐        ┌──────────────────┐
-        │ Config Loader │        │ Viper Config     │
-        │               │        │ Management       │
-        │ - YAML file   │        │ - Env vars       │
-        │ - Env vars    │        │ - Defaults       │
-        └───────┬───────┘        └──────┬───────────┘
-                │                       │
-                └───────────┬───────────┘
-                            ▼
-                  ┌──────────────────────┐
-                  │ Configuration Model  │
-                  │ - environments       │
-                  │   - dev/staging/prod │
-                  │   - database_url     │
-                  │   - migrations_path  │
-                  │   - require_confirm  │
-                  └──────┬───────────────┘
-                         │
-                         ▼
-            ┌────────────────────────────┐
-            │ Core Functionality         │  (Phase 3+)
-            │ - Database Drivers         │
-            │ - Migration Engine         │
-            │ - Execution Handlers       │
-            └────────────────────────────┘
+        ┌───────────────────┐     ┌──────────────────┐
+        │ Viper Config Mgr  │     │ Root Command     │
+        │                   │     │ - Flags          │
+        │ - YAML file       │     │ - initConfig()   │
+        │ - Env vars        │     │ - GetEnvName()   │
+        │ - AutomaticEnv()  │     │ - IsConfigLoaded │
+        └────────┬──────────┘     └──────┬───────────┘
+                 │                        │
+                 └────────────┬───────────┘
+                              ▼
+                 ┌────────────────────────────┐
+                 │ Config Package (Load)      │
+                 │ - Unmarshal to struct      │
+                 │ - Apply defaults           │
+                 │ - ExpandEnvVars(${VAR})    │
+                 │ - Validate() [go-validator]│
+                 │ - Thread-safe (sync.Once)  │
+                 └────────────┬───────────────┘
+                              ▼
+                 ┌────────────────────────────┐
+                 │ Type-Safe Config           │
+                 │ - environments (map)       │
+                 │   - dev/staging/prod       │
+                 │   - DatabaseURL            │
+                 │   - MigrationsPath         │
+                 │   - RequireConfirmation    │
+                 │ - defaults                 │
+                 └────────────┬───────────────┘
+                              │
+                              ▼
+                ┌────────────────────────────┐
+                │ Core Functionality         │  (Phase 3+)
+                │ - Database Drivers         │
+                │ - Migration Engine         │
+                │ - Execution Handlers       │
+                └────────────────────────────┘
 ```
 
 ---
@@ -117,48 +128,71 @@ Viper loads config & env vars
 ---
 
 ### Layer 3: Configuration Management
-**Framework:** Viper (github.com/spf13/viper)
+**Framework:** Viper (for loading) + Type-Safe Config Package
 
 **Configuration Flow:**
 ```
-1. Check --config flag
+1. Viper loads YAML + env vars (in initConfig)
+   ├── Check --config flag
    ├── If set: viper.SetConfigFile(cfgFile)
-   └── If not: Use default (migrate-tool.yaml)
+   └── If not: Search for migrate-tool.yaml
 
-2. Set config parameters
+2. Viper sets config parameters
    ├── ConfigName: "migrate-tool"
    ├── ConfigType: "yaml"
-   └── ConfigPath: "." (current directory)
+   ├── ConfigPath: "." (current directory)
+   └── AutomaticEnv() for env var overrides
 
-3. Enable auto env var loading
-   └── viper.AutomaticEnv()
+3. Command calls config.Load() for type-safe access
+   ├── Unmarshal Viper data into Config struct
+   ├── Apply defaults (migrations_path fallback)
+   ├── ExpandEnvVars() - replace ${VAR} with env values
+   ├── Validate() - struct + custom env var checks
+   └── Thread-safe with sync.Once (single init)
 
-4. Read configuration
-   └── viper.ReadInConfig()
-
-5. Access during command execution
-   └── viper.GetString("environments.dev.database_url")
+4. Access typed config during command execution
+   └── env, _ := config.GetEnv("dev")
+       dbURL := env.DatabaseURL
 ```
 
 **Configuration Schema (migrate-tool.yaml):**
 ```yaml
 environments:
   <env-name>:
-    database_url: <connection-string>
-    migrations_path: <directory-path>
-    require_confirmation: <boolean>
+    database_url: <connection-string> # or ${ENV_VAR}
+    migrations_path: <directory-path>  # optional, uses defaults if missing
+    require_confirmation: <boolean>     # optional
+defaults:
+  migrations_path: "./migrations"       # fallback for envs without it
+  require_confirmation: false           # fallback for envs
 ```
 
-**Environment Variable Override:**
-- Pattern: `MIGRATE_TOOL_<KEY_PATH_UPPERCASE>`
-- Example: `MIGRATE_TOOL_ENVIRONMENTS_DEV_DATABASE_URL`
-- Case-insensitive key paths
+**Validation Rules:**
+- `environments` is required with at least 1 environment
+- Each environment's `database_url` is required
+- `migrations_path` defaults to: env > defaults > "./migrations"
+- Unexpanded env vars detected and reported with helpful errors
+
+**Environment Variable Support:**
+- Pattern in YAML: `${VAR_NAME}`
+- Expanded via ExpandEnvVars() during Load()
+- Viper also supports: `MIGRATE_TOOL_<KEY_PATH_UPPERCASE>`
+- If env var not found, pattern preserved (validation catches it)
 
 ---
 
-### Layer 4: Core Functionality (Future Phases)
+### Layer 4: Configuration Commands (Phase 2)
+**Files:** `internal/cmd/config_show.go`
+
+**Commands:**
+- `config show` - Display environments & defaults with password masking
+  - Masks passwords in database URLs for security
+  - Shows current configuration without exposing secrets
+
+---
+
+### Layer 5: Core Functionality (Future Phases)
 **Planned Modules:**
-- `internal/config/` - Configuration validation & models (Phase 2)
 - `internal/driver/` - Database driver interface & implementations (Phase 3)
 - `internal/migration/` - Migration parsing & execution (Phase 4)
 - `internal/util/` - Utilities & helpers
@@ -435,8 +469,27 @@ Deploy Stage:
 - Build automation (Makefile)
 - Unit test foundation
 
-**Ready for Phase 2:**
-- Configuration validation
-- Schema definition
-- Type-safe config accessors
+## Phase 2 Summary
+
+**Completed:**
+- Type-safe configuration system (internal/config/)
+  - Struct-based Config & Environment with validation tags
+  - Thread-safe Load() with sync.Once pattern
+  - GetEnv() accessor for environment-specific configs
+  - Type-safe defaults application chain
+- Environment variable expansion & validation
+  - ${VAR} pattern replacement with graceful fallback
+  - Detection of unset/unexpanded variables
+  - User-friendly error reporting
+- Configuration inspection command
+  - `config show` command with password masking
+  - Displays all environments and defaults safely
+- Helper functions in root command
+  - GetEnvName() - retrieve current environment
+  - IsConfigLoaded() - check config file status
+
+**Ready for Phase 3:**
+- Database driver interface design
+- Connection string validation
+- Multi-database support (PostgreSQL, MySQL, SQLite)
 
