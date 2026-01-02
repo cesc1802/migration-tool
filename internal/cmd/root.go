@@ -11,6 +11,7 @@ import (
 var (
 	cfgFile               string
 	envName               string
+	autoApprove           bool
 	version, commit, date string
 	configLoaded          bool
 )
@@ -40,6 +41,12 @@ func init() {
 	cobra.OnInitialize(initConfig)
 	rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (default: ./migrate-tool.yaml)")
 	rootCmd.PersistentFlags().StringVar(&envName, "env", "dev", "environment name")
+	rootCmd.PersistentFlags().BoolVar(&autoApprove, "auto-approve", false, "skip confirmation prompts (for CI/CD)")
+}
+
+// AutoApprove returns whether confirmation prompts should be skipped
+func AutoApprove() bool {
+	return autoApprove
 }
 
 func initConfig() {

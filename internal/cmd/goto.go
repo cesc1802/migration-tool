@@ -6,6 +6,7 @@ import (
 	"strconv"
 
 	"github.com/cesc1802/migrate-tool/internal/migrator"
+	"github.com/cesc1802/migrate-tool/internal/ui"
 	"github.com/golang-migrate/migrate/v4"
 	"github.com/spf13/cobra"
 )
@@ -49,7 +50,7 @@ func runGoto(cmd *cobra.Command, args []string) error {
 
 	// Check dirty state - cannot migrate if database is dirty
 	if status.Dirty {
-		fmt.Println("WARNING: Database is in dirty state.")
+		ui.Warning("Database is in dirty state.")
 		fmt.Println("Use 'migrate-tool force <version>' to fix the dirty state first.")
 		return fmt.Errorf("cannot migrate: database in dirty state at version %d", status.Version)
 	}
@@ -66,29 +67,50 @@ func runGoto(cmd *cobra.Command, args []string) error {
 		direction = "DOWN"
 		stepsCount = countMigrationsBetween(mg, target, status.Version)
 	} else {
-		fmt.Printf("Already at version %d\n", targetVersion)
+		ui.Info(fmt.Sprintf("Already at version %d", targetVersion))
 		return nil
 	}
 
-	fmt.Println("┌─────────────────────────────────────────┐")
-	fmt.Println("│  Migration Target                       │")
-	fmt.Println("└─────────────────────────────────────────┘")
+	fmt.Println("Migration Target")
 	fmt.Printf("Environment: %s\n", envName)
 	fmt.Printf("Current version: %d\n", status.Version)
 	fmt.Printf("Target version: %d\n", targetVersion)
 	fmt.Printf("Direction: %s (%d migration(s))\n\n", direction, stepsCount)
 
-	// Confirmation handled in Phase 7
+	// Confirmation logic
+	if !AutoApprove() {
+		details := fmt.Sprintf("Migrating from %d to %d (%s, %d migrations)", status.Version, targetVersion, direction, stepsCount)
+
+		if mg.RequiresConfirmation() {
+			confirmed, err := ui.ConfirmProduction(envName)
+			if err != nil {
+				return err
+			}
+			if !confirmed {
+				ui.Warning("Cancelled")
+				return nil
+			}
+		} else {
+			confirmed, err := ui.ConfirmDangerous("goto", details)
+			if err != nil {
+				return err
+			}
+			if !confirmed {
+				ui.Warning("Cancelled")
+				return nil
+			}
+		}
+	}
 
 	if err := mg.Goto(target); err != nil {
 		if err == migrate.ErrNoChange {
-			fmt.Println("No migrations to apply")
+			ui.Info("No migrations to apply")
 			return nil
 		}
 		return fmt.Errorf("goto failed: %w", err)
 	}
 
-	fmt.Printf("Migrated to version %d\n", targetVersion)
+	ui.Success(fmt.Sprintf("Migrated to version %d", targetVersion))
 	return nil
 }
 

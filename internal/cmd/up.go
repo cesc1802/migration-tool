@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/cesc1802/migrate-tool/internal/migrator"
+	"github.com/cesc1802/migrate-tool/internal/ui"
 	"github.com/golang-migrate/migrate/v4"
 	"github.com/spf13/cobra"
 )
@@ -36,16 +37,46 @@ func runUp(cmd *cobra.Command, args []string) error {
 	}
 
 	if status.Pending == 0 {
-		fmt.Println("No migrations to apply")
+		ui.Info("No pending migrations")
 		return nil
 	}
 
-	// Confirmation will be handled in Phase 7
-	// For now, proceed directly
+	// Show what will happen
+	fmt.Printf("Environment: %s\n", envName)
+	fmt.Printf("Pending migrations: %d\n", status.Pending)
+	if upSteps > 0 {
+		fmt.Printf("Will apply: %d migration(s)\n", upSteps)
+	} else {
+		fmt.Printf("Will apply: all %d migration(s)\n", status.Pending)
+	}
+	fmt.Println()
+
+	// Confirmation logic
+	if !AutoApprove() {
+		if mg.RequiresConfirmation() {
+			confirmed, err := ui.ConfirmProduction(envName)
+			if err != nil {
+				return err
+			}
+			if !confirmed {
+				ui.Warning("Cancelled")
+				return nil
+			}
+		} else {
+			confirmed, err := ui.Confirm("Apply migrations?", false)
+			if err != nil {
+				return err
+			}
+			if !confirmed {
+				ui.Warning("Cancelled")
+				return nil
+			}
+		}
+	}
 
 	if err := mg.Up(upSteps); err != nil {
 		if err == migrate.ErrNoChange {
-			fmt.Println("No migrations to apply")
+			ui.Info("No migrations to apply")
 			return nil
 		}
 		return fmt.Errorf("migration failed: %w", err)
@@ -58,7 +89,7 @@ func runUp(cmd *cobra.Command, args []string) error {
 	}
 
 	applied := newStatus.Applied - status.Applied
-	fmt.Printf("Applied %d migration(s) successfully\n", applied)
+	ui.Success(fmt.Sprintf("Applied %d migration(s)", applied))
 	fmt.Printf("Current version: %d\n", newStatus.Version)
 
 	return nil

@@ -20,10 +20,14 @@ project/
 │   │   ├── config_show.go            # Config command (Phase 2)
 │   │   ├── up.go, down.go            # Migration commands (Phase 4)
 │   │   ├── status.go, history.go     # Status commands (Phase 4)
+│   │   ├── force.go, goto.go         # Advanced commands (Phase 6)
 │   │   ├── create.go                 # Create command (Phase 5)
 │   │   ├── validate.go               # Validate command (Phase 5)
 │   │   └── version.go                # Version command (Phase 5)
 │   ├── config/                       # Configuration (Phase 2)
+│   ├── ui/                           # UI & confirmations (Phase 7)
+│   │   ├── prompt.go                 # TTY detection, confirmation prompts
+│   │   └── output.go                 # Colored output helpers
 │   ├── source/                       # Migration source drivers (Phase 3)
 │   │   └── singlefile/               # Single-file up/down migrations
 │   │       ├── parser.go             # Migration file parser
@@ -433,6 +437,84 @@ func SetVersionInfo(v, c, d string) {
 	date = d
 }
 ```
+
+### UI & Confirmation Patterns (Phase 7)
+
+**TTY Detection & Non-Interactive Mode:**
+```go
+// Check if stdout is a terminal
+if !ui.IsTTY() && !AutoApprove() {
+	return fmt.Errorf("not a TTY: use --auto-approve for non-interactive mode")
+}
+```
+
+**Confirmation Pattern - Standard Operation:**
+```go
+if !AutoApprove() {
+	confirmed, err := ui.Confirm("Proceed with operation?", false)
+	if err != nil {
+		return err  // Non-TTY error with clear guidance
+	}
+	if !confirmed {
+		ui.Warning("Cancelled")
+		return nil
+	}
+}
+```
+
+**Confirmation Pattern - Production Environment:**
+```go
+if !AutoApprove() {
+	if mg.RequiresConfirmation() {
+		// Double confirmation for production safety
+		confirmed, err := ui.ConfirmProduction(envName)
+		if err != nil {
+			return err
+		}
+		if !confirmed {
+			ui.Warning("Cancelled")
+			return nil
+		}
+	} else {
+		// Single confirmation for non-production
+		confirmed, err := ui.Confirm("Apply migrations?", false)
+		if err != nil {
+			return err
+		}
+		if !confirmed {
+			ui.Warning("Cancelled")
+			return nil
+		}
+	}
+}
+```
+
+**Dangerous Operation Confirmation:**
+```go
+details := fmt.Sprintf("This will %s in %s environment", operation, envName)
+confirmed, err := ui.ConfirmDangerous("force version change", details)
+if err != nil {
+	return err
+}
+if !confirmed {
+	ui.Warning("Cancelled")
+	return nil
+}
+```
+
+**Colored Output:**
+```go
+ui.Success("Migration applied successfully")
+ui.Warning("Database in dirty state - run force to recover")
+ui.Error("Connection failed")
+ui.Info("Checking migration files...")
+```
+
+**NO_COLOR Support:**
+- Respects environment variable for accessibility
+- Automatically detects TTY for color output
+- Plain text fallback for CI/CD systems
+- Set via: `NO_COLOR=1 migrate-tool up`
 
 ### File Security Patterns (Phase 5)
 

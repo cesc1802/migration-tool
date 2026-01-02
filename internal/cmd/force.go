@@ -5,6 +5,7 @@ import (
 	"strconv"
 
 	"github.com/cesc1802/migrate-tool/internal/migrator"
+	"github.com/cesc1802/migrate-tool/internal/ui"
 	"github.com/spf13/cobra"
 )
 
@@ -46,9 +47,7 @@ func runForce(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("get status: %w", err)
 	}
 
-	fmt.Println("┌─────────────────────────────────────────┐")
-	fmt.Println("│  WARNING: Force Version Change          │")
-	fmt.Println("└─────────────────────────────────────────┘")
+	fmt.Println("WARNING: Force Version Change")
 	fmt.Printf("Environment: %s\n", envName)
 	fmt.Printf("Current version: %d (dirty: %v)\n", status.Version, status.Dirty)
 	fmt.Printf("New version: %d\n\n", version)
@@ -56,13 +55,35 @@ func runForce(cmd *cobra.Command, args []string) error {
 	fmt.Println("Use this only to recover from dirty state.")
 	fmt.Println()
 
-	// Confirmation handled in Phase 7
-	// For now, proceed
+	// Confirmation logic
+	if !AutoApprove() {
+		details := fmt.Sprintf("Force setting version from %d to %d\nThis does NOT run migrations", status.Version, version)
+
+		if mg.RequiresConfirmation() {
+			confirmed, err := ui.ConfirmProduction(envName)
+			if err != nil {
+				return err
+			}
+			if !confirmed {
+				ui.Warning("Cancelled")
+				return nil
+			}
+		} else {
+			confirmed, err := ui.ConfirmDangerous("force version", details)
+			if err != nil {
+				return err
+			}
+			if !confirmed {
+				ui.Warning("Cancelled")
+				return nil
+			}
+		}
+	}
 
 	if err := mg.Force(version); err != nil {
 		return fmt.Errorf("force failed: %w", err)
 	}
 
-	fmt.Printf("Version forced to %d\n", version)
+	ui.Success(fmt.Sprintf("Version forced to %d", version))
 	return nil
 }

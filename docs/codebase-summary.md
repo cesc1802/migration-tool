@@ -71,9 +71,12 @@ Golang migration CLI tool - Phase 1-6 complete. A cross-platform database migrat
 - **Key Features:**
   - Cobra-based command framework
   - Viper configuration management (YAML config + environment variables)
-  - Persistent flags: `--config` (config file path), `--env` (environment name, default: "dev")
+  - Persistent flags:
+    - `--config` (config file path)
+    - `--env` (environment name, default: "dev")
+    - `--auto-approve` (skip confirmation prompts, default: false, Phase 7)
   - Auto-config initialization on startup
-  - Helper functions: `GetEnvName()`, `IsConfigLoaded()`
+  - Helper functions: `GetEnvName()`, `IsConfigLoaded()`, `AutoApprove()` (Phase 7)
 
 ### 3. Configuration System (internal/config/)
 **Purpose:** Type-safe config loading, validation, and environment variable expansion
@@ -134,16 +137,26 @@ Golang migration CLI tool - Phase 1-6 complete. A cross-platform database migrat
 ### 7. Migration Commands (internal/cmd/) - Phase 4-6
 **Purpose:** CLI subcommands for migration operations
 
-**Files (Phase 4):**
+**Files (Phase 4, Phase 7 confirmations added):**
 - **up.go:**
-  - Command: `migrate-tool up [--steps=N] --env=ENV`
+  - Command: `migrate-tool up [--steps=N] --env=ENV [--auto-approve]`
   - Flag: `--steps` (default: 0 = apply all)
-  - Behavior: Gets status, applies N/all pending migrations, shows result
+  - Phase 7: Confirmation flow
+    - Shows pending count and target before prompting
+    - Non-production: single `ui.Confirm()` prompt
+    - Production (require_confirmation: true): double `ui.ConfirmProduction()` prompt
+    - `--auto-approve` skips all confirmation prompts
+  - Behavior: Gets status, asks for confirmation, applies N/all pending migrations, shows result
 
 - **down.go:**
-  - Command: `migrate-tool down [--steps=N] --env=ENV`
+  - Command: `migrate-tool down [--steps=N] --env=ENV [--auto-approve]`
   - Flag: `--steps` (default: 1 = rollback 1 for safety)
-  - Behavior: Gets status, rolls back N migrations, shows result
+  - Phase 7: Confirmation flow
+    - Shows current version and rollback count before prompting
+    - Non-production: `ui.ConfirmDangerous("rollback", details)` warning
+    - Production: double `ui.ConfirmProduction()` prompt
+    - `--auto-approve` skips all confirmation prompts
+  - Behavior: Gets status, asks for confirmation, rolls back N migrations, shows result
 
 - **status.go:**
   - Command: `migrate-tool status --env=ENV`
@@ -156,10 +169,11 @@ Golang migration CLI tool - Phase 1-6 complete. A cross-platform database migrat
   - Output: List of migrations with [x] for applied, [ ] for pending
   - Pagination: Shows "... and N more" if exceeds limit
 
-**Files (Phase 6 - Advanced Migration Control):**
+**Files (Phase 6 - Advanced Migration Control, Phase 7 confirmations added):**
 - **force.go:**
-  - Command: `migrate-tool force <version> --env=ENV`
+  - Command: `migrate-tool force <version> --env=ENV [--auto-approve]`
   - Argument: version (integer, can be 0 or -1)
+  - Phase 7: Confirmation via `ui.ConfirmDangerous()` with current/new version details
   - Behavior: Force set migration version without running migrations
   - Use case: Recovery from dirty state after failed migration
   - Warnings: Displays caution warning with current/new version info
@@ -167,13 +181,62 @@ Golang migration CLI tool - Phase 1-6 complete. A cross-platform database migrat
   - Examples: reset to initial state (0), clear version (-1)
 
 - **goto.go:**
-  - Command: `migrate-tool goto <version> --env=ENV`
+  - Command: `migrate-tool goto <version> --env=ENV [--auto-approve]`
   - Argument: target version (integer)
+  - Phase 7: Confirmation via `ui.ConfirmDangerous()` with direction/step count
   - Behavior: Migrate up or down to reach specified version
   - Smart direction detection: UP if target > current, DOWN if target < current
   - Dirty state check: Prevents migration if DB is dirty
   - Step counting: Calculates migration count via `countMigrationsBetween()`
   - Helper function: `countMigrationsBetween(from, to)` - counts migrations in range for display
+
+### 9. UI Package (internal/ui/) - Phase 7
+**Purpose:** Terminal interaction, confirmation prompts, and colored output helpers
+
+**Files:**
+- **prompt.go:**
+  - `IsTTY()` - Detects if stdout is a terminal via golang.org/x/term
+  - `Confirm(message, defaultNo)` - Basic y/n confirmation with prompt UI (manifoldco/promptui)
+    - Shows `[Y/n]` or `[y/N]` based on defaultNo parameter
+    - Returns error if non-TTY without --auto-approve (CI/CD guidance)
+  - `ConfirmProduction(envName)` - Double confirmation for production safety (require_confirmation: true)
+    - First prompt: y/n confirmation
+    - Second prompt: type environment name to confirm (typo prevention)
+    - Example: staging/prod environments with higher risk
+  - `ConfirmDangerous(operation, details)` - Warning display for dangerous ops (force, goto, rollback)
+    - Shows "WARNING: DANGEROUS OPERATION" header
+    - Displays operation details (current/target versions, steps)
+    - Requires explicit y/n confirmation
+  - Non-TTY handling: Returns descriptive error suggesting --auto-approve flag
+
+- **output.go:**
+  - ANSI color code constants: ColorRed, ColorGreen, ColorYellow, ColorBlue, ColorBold, ColorReset
+  - `UseColor()` - Smart detection: IsTTY() && NO_COLOR env not set
+    - Respects NO_COLOR environment variable for accessibility
+    - Disables colors for non-TTY (pipes, CI/CD systems)
+  - `Success(msg)` - Green checkmark output: "✓ OK message"
+  - `Warning(msg)` - Yellow warning: "! message"
+  - `Error(msg)` - Red error to stderr: "ERROR: message"
+  - `Info(msg)` - Blue info: "* message"
+  - All functions provide plain text fallback when colors disabled
+
+**Integration Patterns:**
+- Root command flag: `--auto-approve` bypasses all confirmation prompts (CI/CD mode)
+- Commands check `AutoApprove()` before prompting
+- Smart confirmation strategy:
+  - Non-production: single `Confirm()` prompt
+  - Production (require_confirmation: true): double `ConfirmProduction()` prompt
+  - Dangerous ops: `ConfirmDangerous()` with details
+- Confirmation happens before execution (safe cancellation point)
+- All prompt errors (non-TTY) propagate to CLI for user guidance
+
+**Test Coverage (prompt_test.go, output_test.go - if implemented):**
+- TTY detection with mock stdout
+- Confirmation flow validation (default values, input parsing)
+- Production double-confirmation sequence
+- Color detection with NO_COLOR env testing
+- Plain text fallback verification
+- Error propagation from non-TTY environments
 
 **Test Coverage (up_test.go, down_test.go, status_test.go, history_test.go, force_test.go, goto_test.go):**
   - Command registration verification
@@ -464,8 +527,36 @@ make clean          # Remove bin/ directory
   - `countMigrationsBetween()` helper: counts migrations in version range for display
   - Test coverage (goto_test.go): direction detection, validation, dirty state handling
 
+## Completed in Phase 7 - Interactive Confirmations
+- UI package with confirmation & output helpers (internal/ui/)
+  - **prompt.go:**
+    - `IsTTY()` - Detects if stdout is a terminal (supports non-interactive environments)
+    - `Confirm(message, defaultNo)` - Single y/n prompt with customizable default
+    - `ConfirmProduction(envName)` - Double confirmation for production (y/n, then type env name)
+    - `ConfirmDangerous(operation, details)` - Warning display before dangerous operations (force, goto, rollback)
+    - All functions return error if non-TTY without --auto-approve (clear CI/CD guidance)
+  - **output.go:**
+    - ANSI color codes (Red, Green, Yellow, Blue, Bold, Reset)
+    - `UseColor()` - Smart color detection: TTY + NO_COLOR env check
+    - `Success(msg)` - Green checkmark output with color support
+    - `Warning(msg)` - Yellow warning prefix
+    - `Error(msg)` - Red error to stderr
+    - `Info(msg)` - Blue info prefix
+    - Plain text fallback when NO_COLOR set or non-TTY
+- Root command enhancements (internal/cmd/root.go)
+  - Added `autoApprove` boolean flag: `--auto-approve` (default: false)
+  - New `AutoApprove()` function to check flag state
+  - Enables CI/CD workflows to bypass interactive prompts
+- Command confirmation integration (up.go, down.go, force.go, goto.go)
+  - Smart confirmation strategy:
+    - Non-production (require_confirmation: false): single `Confirm()` prompt
+    - Production (require_confirmation: true): double `ConfirmProduction()` prompt
+    - Dangerous ops (down rollback): `ConfirmDangerous()` with operation details
+    - `--auto-approve` flag skips all prompts (CI/CD mode)
+  - Non-TTY without --auto-approve returns descriptive error with solution
+  - Confirmation happens BEFORE migration execution (safe abort point)
+
 ## Next Phases
-- Phase 7: Interactive confirmation & dry-run mode
 - Phase 8: Advanced features (undo, seed, hooks)
 - Phase 9: UI enhancements & release
 

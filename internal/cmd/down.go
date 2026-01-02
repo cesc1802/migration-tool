@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/cesc1802/migrate-tool/internal/migrator"
+	"github.com/cesc1802/migrate-tool/internal/ui"
 	"github.com/golang-migrate/migrate/v4"
 	"github.com/spf13/cobra"
 )
@@ -36,15 +37,44 @@ func runDown(cmd *cobra.Command, args []string) error {
 	}
 
 	if status.Applied == 0 {
-		fmt.Println("No migrations to rollback")
+		ui.Info("No migrations to rollback")
 		return nil
 	}
 
-	// Confirmation will be handled in Phase 7
+	// Show what will happen
+	fmt.Printf("Environment: %s\n", envName)
+	fmt.Printf("Current version: %d\n", status.Version)
+	fmt.Printf("Will rollback: %d migration(s)\n", downSteps)
+	fmt.Println()
+
+	// Confirmation logic
+	if !AutoApprove() {
+		details := fmt.Sprintf("Rolling back %d migration(s) in %s", downSteps, envName)
+
+		if mg.RequiresConfirmation() {
+			confirmed, err := ui.ConfirmProduction(envName)
+			if err != nil {
+				return err
+			}
+			if !confirmed {
+				ui.Warning("Cancelled")
+				return nil
+			}
+		} else {
+			confirmed, err := ui.ConfirmDangerous("rollback", details)
+			if err != nil {
+				return err
+			}
+			if !confirmed {
+				ui.Warning("Cancelled")
+				return nil
+			}
+		}
+	}
 
 	if err := mg.Down(downSteps); err != nil {
 		if err == migrate.ErrNoChange {
-			fmt.Println("No migrations to rollback")
+			ui.Info("No migrations to rollback")
 			return nil
 		}
 		return fmt.Errorf("rollback failed: %w", err)
@@ -57,7 +87,7 @@ func runDown(cmd *cobra.Command, args []string) error {
 	}
 
 	rolledBack := status.Applied - newStatus.Applied
-	fmt.Printf("Rolled back %d migration(s)\n", rolledBack)
+	ui.Success(fmt.Sprintf("Rolled back %d migration(s)", rolledBack))
 	if newStatus.Version > 0 {
 		fmt.Printf("Current version: %d\n", newStatus.Version)
 	} else {
