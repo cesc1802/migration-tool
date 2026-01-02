@@ -1,7 +1,7 @@
 # yaml-language-server: $schema=https://goreleaser.com/static/schema.json
 version: 2
 
-project_name: migrate-tool
+project_name: janus
 
 before:
   hooks:
@@ -9,9 +9,9 @@ before:
     - go generate ./...
 
 builds:
-  - id: migrate-tool
-    main: ./cmd/migrate-tool
-    binary: migrate-tool
+  - id: janus
+    main: ./cmd/janus
+    binary: janus
     env:
       - CGO_ENABLED=0
     goos:
@@ -38,7 +38,7 @@ archives:
     files:
       - README.md
       - LICENSE
-      - migrate-tool.example.yaml
+      - config.example.yaml
 
 checksum:
   name_template: "checksums.txt"

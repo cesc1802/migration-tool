@@ -1,13 +1,13 @@
 #!/bin/sh
-# Install script for migrate-tool
-# Downloads and installs migrate-tool from GitHub releases
+# Install script for janus
+# Downloads and installs janus from GitHub releases
 # Usage: ./install.sh [--version VERSION]
 
 set -e
 
 # Configuration
 REPO="cesc1802/migration-tool"
-BINARY_NAME="migrate-tool"
+BINARY_NAME="janus"
 INSTALL_DIR="${INSTALL_DIR:-/usr/local/bin}"
 GITHUB_API="https://api.github.com"
 GITHUB_DOWNLOAD="https://github.com"

@@ -1,4 +1,4 @@
-module github.com/cesc1802/migrate-tool
+module github.com/cesc1802/janus
 
 go 1.24.0
 
