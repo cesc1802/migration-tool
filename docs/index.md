@@ -3,6 +3,10 @@ layout: default
 title: Home
 ---
 
+<div align="center">
+  <img src="{{ '/assets/logo/janus-roman-pillar.svg' | relative_url }}" alt="Janus Logo" width="96" height="96">
+</div>
+
 # Janus Documentation
 
 Cross-platform database migration CLI with single-file up/down support.
