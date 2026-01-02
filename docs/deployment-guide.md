@@ -1,8 +1,12 @@
 # Deployment & Installation Guide
 
-## Unix Installation Script
+## Installation Scripts
 
-**Phase 01 Completion:** Automated installation script for Unix-like systems (Linux, macOS).
+**Phase 01-02 Completion:** Automated installation scripts for Unix-like systems (Linux, macOS) and Windows.
+
+### Unix Installation Script
+
+**Completion:** Automated installation script for Unix-like systems (Linux, macOS).
 
 ### Overview
 
@@ -228,6 +232,223 @@ Requires: Go 1.25.1 or higher
 
 ---
 
+## Windows Installation Script
+
+**Phase 02 Completion:** Automated installation script for Windows (PowerShell).
+
+### Overview
+
+The `scripts/install.ps1` script provides a robust method to download and install `migrate-tool` from GitHub releases on Windows. It includes:
+- Automatic architecture detection (amd64, arm64)
+- SHA256 checksum verification
+- Tar extraction with fallback for older Windows versions
+- Optional automatic PATH configuration
+- Version-specific or latest release installation
+
+### Usage
+
+#### Basic Installation (Latest Version)
+
+```powershell
+.\install.ps1
+```
+
+Installs latest `migrate-tool` release to `%LOCALAPPDATA%\migrate-tool`.
+
+#### Install and Add to PATH
+
+```powershell
+.\install.ps1 -AddToPath
+```
+
+Installation directory will be added to user PATH environment variable (requires terminal restart).
+
+#### Install Specific Version
+
+```powershell
+.\install.ps1 -Version v0.0.4
+```
+
+#### Custom Installation Directory
+
+```powershell
+.\install.ps1 -InstallDir "C:\Tools\migrate-tool"
+```
+
+#### Show Help
+
+```powershell
+.\install.ps1 -Help
+```
+
+### Parameters
+
+| Parameter | Description | Example |
+|-----------|-------------|---------|
+| `-Version` | Install specific version | `.\install.ps1 -Version v0.0.4` |
+| `-InstallDir` | Custom install directory | `.\install.ps1 -InstallDir C:\Tools` |
+| `-AddToPath` | Add to user PATH (requires restart) | `.\install.ps1 -AddToPath` |
+| `-Help` | Show help message | `.\install.ps1 -Help` |
+
+### Examples
+
+```powershell
+# Install latest to default location
+.\install.ps1
+
+# Install specific version with PATH
+.\install.ps1 -Version v0.0.4 -AddToPath
+
+# Install to custom directory
+.\install.ps1 -InstallDir "C:\Program Files\migrate-tool"
+
+# Show help
+.\install.ps1 -Help
+```
+
+### Requirements
+
+#### Supported Platforms
+- **OS:** Windows 10 (1803+), Windows 11, Windows Server 2016+
+- **Architecture:** amd64 (x86_64), arm64 (aarch64)
+
+#### Dependencies
+- PowerShell 5.0+ (built-in on Windows 10+)
+- .NET 4.6.1+ (for tar extraction fallback on older Windows)
+
+#### Prerequisites
+- Write permissions to install directory (or run as administrator)
+- Network access to GitHub (github.com, api.github.com)
+
+### Installation Process
+
+1. Detects Windows architecture (amd64/arm64)
+2. Fetches latest version from GitHub API (if not specified)
+3. Downloads release archive and checksums.txt
+4. Verifies SHA256 checksum of archive
+5. Extracts binary using tar (with .NET fallback)
+6. Creates install directory if needed
+7. Installs binary to directory
+8. Optionally adds directory to user PATH
+9. Verifies installation and shows version
+
+### Tar Extraction
+
+The script uses the native `tar` command available on Windows 10 1803+ for fast extraction. For older Windows versions, it falls back to .NET-based manual tar extraction with gzip decompression.
+
+### Troubleshooting
+
+#### "Unsupported architecture"
+
+Script only supports amd64 and arm64 Windows. Older 32-bit (x86) Windows is not supported.
+
+#### "Failed to download from URL"
+
+Check:
+- Network connectivity to github.com and api.github.com
+- GitHub API rate limiting (if fetching latest version)
+- Specified version exists: https://github.com/cesc1802/migration-tool/releases
+
+Try specifying a known version:
+```powershell
+.\install.ps1 -Version v0.0.4
+```
+
+#### "Cannot write to installation directory"
+
+Run as administrator or choose a user-writable directory:
+
+```powershell
+# Option 1: Run as administrator
+# Right-click PowerShell → Run as Administrator
+# Then run: .\install.ps1
+
+# Option 2: Install to user-local directory
+.\install.ps1 -InstallDir "$env:LOCALAPPDATA\Tools\migrate-tool"
+
+# Option 3: Install to Program Files (requires admin)
+$AdminCheck = ([Security.Principal.WindowsPrincipal] [Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole] "Administrator")
+if (-not $AdminCheck) {
+    Write-Host "Please run as Administrator"
+    exit 1
+}
+.\install.ps1 -InstallDir "C:\Program Files\migrate-tool"
+```
+
+#### Command not found after installation
+
+If `migrate-tool` command is not found, add the directory to PATH:
+
+```powershell
+# Check if installed
+dir $env:LOCALAPPDATA\migrate-tool
+
+# Add to PATH manually
+$currentPath = [Environment]::GetEnvironmentVariable("PATH", "User")
+$newPath = "$currentPath;$env:LOCALAPPDATA\migrate-tool"
+[Environment]::SetEnvironmentVariable("PATH", $newPath, "User")
+
+# Restart terminal for changes to take effect
+```
+
+Or use `-AddToPath` parameter during installation:
+
+```powershell
+.\install.ps1 -AddToPath
+```
+
+### Security Considerations
+
+#### Checksum Verification
+
+All releases include `checksums.txt` with SHA256 hashes. The script automatically verifies checksums before installation.
+
+#### HTTPS Only
+
+- GitHub API and release downloads use HTTPS
+- Secure download with error handling
+
+#### PowerShell Execution Policy
+
+If you see "cannot be loaded because running scripts is disabled", enable script execution:
+
+```powershell
+# Check current policy
+Get-ExecutionPolicy
+
+# Allow current user to run scripts (no admin needed)
+Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
+
+# Then run install
+.\install.ps1
+```
+
+### Verification
+
+After installation:
+
+```powershell
+# Check version
+migrate-tool version
+
+# Show help
+migrate-tool --help
+```
+
+### CI/CD Integration
+
+For automated deployments on Windows:
+
+```powershell
+# Download and install latest version
+powershell -Command "Invoke-WebRequest -Uri 'https://raw.githubusercontent.com/cesc1802/migration-tool/master/scripts/install.ps1' -OutFile install.ps1; .\install.ps1"
+
+# Or with specific version
+powershell -Command "Invoke-WebRequest -Uri 'https://raw.githubusercontent.com/cesc1802/migration-tool/master/scripts/install.ps1' -OutFile install.ps1; .\install.ps1 -Version v0.0.4"
+```
+
+---
+
 ## Distribution Strategy
 
 ### Supported Installation Methods
@@ -235,15 +456,20 @@ Requires: Go 1.25.1 or higher
 | Method | OS Support | Effort | Reliability |
 |--------|-----------|--------|------------|
 | Download Binary | Linux, macOS, Windows | None | High |
-| Install Script | Linux, macOS | Low | High |
+| Install Script (Bash) | Linux, macOS | Low | High |
+| Install Script (PowerShell) | Windows | Low | High |
 | `go install` | All | Low | High |
 | Source Build | All | Medium | Very High |
 
 ### Script Maintenance
 
-- **Location:** `./scripts/install.sh`
-- **Last Updated:** Phase 01 completion
-- **Tested Platforms:** Linux (x86_64, arm64), macOS (x86_64, arm64)
+- **Unix Script Location:** `./scripts/install.sh`
+  - **Last Updated:** Phase 01 completion
+  - **Tested Platforms:** Linux (x86_64, arm64), macOS (x86_64, arm64)
+
+- **Windows Script Location:** `./scripts/install.ps1`
+  - **Last Updated:** Phase 02 completion
+  - **Tested Platforms:** Windows 10 1803+ (amd64, arm64)
 
 ---
 
