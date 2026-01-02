@@ -27,7 +27,7 @@ func TestHistoryCmd_Flags(t *testing.T) {
 	// Verify limit flag exists
 	flag := historyCmd.Flags().Lookup("limit")
 	if flag == nil {
-		t.Error("limit flag not found")
+		t.Fatal("limit flag not found")
 	}
 	if flag.DefValue != "10" {
 		t.Errorf("limit default = %s, want 10", flag.DefValue)

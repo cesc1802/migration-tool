@@ -27,7 +27,7 @@ func TestUpCmd_Flags(t *testing.T) {
 	// Verify steps flag exists
 	flag := upCmd.Flags().Lookup("steps")
 	if flag == nil {
-		t.Error("steps flag not found")
+		t.Fatal("steps flag not found")
 	}
 	if flag.DefValue != "0" {
 		t.Errorf("steps default = %s, want 0", flag.DefValue)

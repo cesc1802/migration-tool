@@ -27,7 +27,7 @@ func TestDownCmd_Flags(t *testing.T) {
 	// Verify steps flag exists
 	flag := downCmd.Flags().Lookup("steps")
 	if flag == nil {
-		t.Error("steps flag not found")
+		t.Fatal("steps flag not found")
 	}
 	if flag.DefValue != "1" {
 		t.Errorf("steps default = %s, want 1", flag.DefValue)
