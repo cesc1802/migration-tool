@@ -86,7 +86,7 @@ release:
     
     **Windows (PowerShell):**
     ```powershell
-    irm https://raw.githubusercontent.com/cesc1802/migration-tool/master/scripts/install.ps1 | iex
+    irm https://github.com/cesc1802/migration-tool/releases/download/v{{ .Version }}/install.ps1 | iex
     ```
 
     ### Manual Installation
