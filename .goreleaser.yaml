@@ -74,6 +74,8 @@ release:
   name_template: "v{{ .Version }}"
   extra_files:
     - glob: scripts/install.sh
+    - glob: scripts/install.ps1
+
   header: |
     ## Migration Tool {{ .Version }}
 
