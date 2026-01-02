@@ -4,9 +4,10 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/spf13/cobra"
+
 	"github.com/cesc1802/migrate-tool/internal/config"
 	"github.com/cesc1802/migrate-tool/internal/source/singlefile"
-	"github.com/spf13/cobra"
 )
 
 var validateCmd = &cobra.Command{

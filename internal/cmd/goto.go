@@ -5,10 +5,11 @@ import (
 	"os"
 	"strconv"
 
-	"github.com/cesc1802/migrate-tool/internal/migrator"
-	"github.com/cesc1802/migrate-tool/internal/ui"
 	"github.com/golang-migrate/migrate/v4"
 	"github.com/spf13/cobra"
+
+	"github.com/cesc1802/migrate-tool/internal/migrator"
+	"github.com/cesc1802/migrate-tool/internal/ui"
 )
 
 var gotoCmd = &cobra.Command{

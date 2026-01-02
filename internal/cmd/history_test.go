@@ -4,8 +4,9 @@ import (
 	"bytes"
 	"testing"
 
-	"github.com/cesc1802/migrate-tool/internal/config"
 	"github.com/spf13/viper"
+
+	"github.com/cesc1802/migrate-tool/internal/config"
 )
 
 func TestHistoryCmd_Registered(t *testing.T) {

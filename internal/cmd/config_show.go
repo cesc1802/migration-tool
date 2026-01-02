@@ -4,8 +4,9 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/cesc1802/migrate-tool/internal/config"
 	"github.com/spf13/cobra"
+
+	"github.com/cesc1802/migrate-tool/internal/config"
 )
 
 var configCmd = &cobra.Command{

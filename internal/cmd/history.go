@@ -3,8 +3,9 @@ package cmd
 import (
 	"fmt"
 
-	"github.com/cesc1802/migrate-tool/internal/migrator"
 	"github.com/spf13/cobra"
+
+	"github.com/cesc1802/migrate-tool/internal/migrator"
 )
 
 var historyLimit int
