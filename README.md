@@ -12,6 +12,14 @@ Cross-platform database migration CLI tool with single-file up/down support.
 
 ## Installation
 
+### Automated Installation (Recommended)
+
+```bash
+./scripts/install.sh
+```
+
+For detailed options and troubleshooting, see [Deployment Guide](./docs/deployment-guide.md).
+
 ### Download Binary
 
 Download the appropriate binary for your platform from [Releases](https://github.com/cesc1802/migration-tool/releases).

@@ -7,7 +7,7 @@ A robust, cross-platform database migration CLI tool that provides single-file u
 
 ---
 
-## Phase 1: Project Setup (COMPLETED)
+## Phase 1: Project Setup & Unix Installation (COMPLETED)
 
 ### Functional Requirements
 - [x] Go project structure with proper module organization
@@ -15,12 +15,16 @@ A robust, cross-platform database migration CLI tool that provides single-file u
 - [x] Configuration management system (YAML + environment variables)
 - [x] Build automation with version injection
 - [x] Unit test foundation
+- [x] Automated Unix installation script with checksum verification
 
 ### Non-Functional Requirements
 - [x] Cross-platform compilation (CGO disabled)
 - [x] Proper error handling and exit codes
 - [x] Version tracking (version, commit hash, date)
 - [x] Configuration file templating
+- [x] Secure binary distribution with SHA256 verification
+- [x] Curl/wget fallback for maximum compatibility
+- [x] User-friendly colored output
 
 ### Acceptance Criteria
 - [x] CLI runs without errors
@@ -28,6 +32,10 @@ A robust, cross-platform database migration CLI tool that provides single-file u
 - [x] Configuration loads from YAML and environment variables
 - [x] Unit tests pass (TestSetVersionInfo, TestExecute, TestRootCmdExists)
 - [x] Binary builds for multiple platforms
+- [x] Install script detects OS/architecture correctly
+- [x] Install script verifies archive checksum before installation
+- [x] Install script supports custom directories and version pinning
+- [x] Install script handles missing dependencies gracefully
 
 ### Deliverables
 - cmd/migrate-tool/main.go - Entry point with version injection
@@ -36,6 +44,8 @@ A robust, cross-platform database migration CLI tool that provides single-file u
 - Makefile - Build automation
 - migrate-tool.example.yaml - Configuration template
 - .gitignore - Properly configured for Go project
+- scripts/install.sh - Automated Unix installation script (279 lines)
+- docs/deployment-guide.md - Installation and distribution documentation
 
 ---
 
