@@ -880,6 +880,103 @@ Before submitting code for review:
 
 ---
 
+## Go Linting Standards (golangci-lint v2.7.2)
+
+### Migration Summary (Completed Jan 2, 2026)
+Project completed migration to golangci-lint v2.7.2 with zero linting issues.
+
+**Phase Timeline:**
+1. **Phase 1 - goimports formatting:** Fixed 17 import organization issues
+   - Enforced stdlib → external → internal ordering
+   - Added proper blank line separators between groups
+   - Updated .golangci.yaml formatter settings
+
+2. **Phase 2 - Error handling (errcheck):** Fixed 38 unchecked error issues
+   - Defer pattern: Wrapped all `mg.Close()` calls in anonymous function closures
+   - File operations: Added error handling for `os.WriteFile()`, `os.MkdirAll()`, `os.Setenv()`
+   - Reader cleanup: Fixed all `reader.Close()` error handling patterns
+   - Test files: Properly handled errors in setup/teardown operations
+
+3. **Phase 3 - Nil pointer checks (staticcheck SA5011):** Fixed 6 issues
+   - Test files: Changed `t.Error()` to `t.Fatal()` for nil flag checks
+   - Rationale: Prevents nil pointer dereference after the check fails
+
+4. **Phase 4 - Validation & cleanup:** Deleted `.golangci.bck.yaml` backup file
+
+### Active Linters Configuration
+```yaml
+# .golangci.yaml v2 configuration
+linters:
+  enable:
+    - misspell           # Spell checking
+formatters:
+  enable:
+    - gofmt             # Code formatting (with simplify)
+    - goimports         # Import organization with local-prefixes
+```
+
+### Linting Practices
+
+**Import Organization Standard:**
+```go
+import (
+    "standard/library"
+    "another/stdlib"
+
+    "github.com/external-package"
+    "github.com/another/external"
+
+    "github.com/cesc1802/migrate-tool/internal/package"
+)
+```
+Groups separated by blank lines in this order:
+1. Standard library imports
+2. Third-party imports
+3. Internal project imports (prefixed with `github.com/cesc1802/migrate-tool/internal/`)
+
+**Error Handling in Deferred Cleanup:**
+```go
+// Always use anonymous function wrapper to avoid deferred call evaluation issues
+mg, err := migrator.New(envName)
+if err != nil {
+    return err
+}
+defer func() { _ = mg.Close() }()
+
+// Exception: Errors safely ignored are documented
+// - Resource cleanup errors in defer (non-critical)
+// - Non-TTY detection checks (expected behavior)
+```
+
+**Nil Pointer Safety in Tests:**
+```go
+// WRONG: t.Error allows execution to continue, risking nil dereference
+if mg == nil {
+    t.Error("expected migrator, got nil")  // Can cause panic on next line
+}
+mg.Method()  // UNSAFE if mg is nil
+
+// CORRECT: t.Fatal stops test execution immediately
+if mg == nil {
+    t.Fatal("expected migrator, got nil")  // Safe: test terminates
+}
+mg.Method()  // SAFE
+```
+
+**Running Linters:**
+```bash
+make lint          # Run all linters
+golangci-lint run  # Run golangci-lint directly
+```
+
+**Pre-commit Checklist:**
+- Run `make lint` - must pass with zero issues
+- Verify import ordering matches standard
+- Ensure all errors are checked or explicitly documented as ignored
+- Use `t.Fatal()` for nil checks in tests, not `t.Error()`
+
+---
+
 ## Resources & Tools
 
 - **Go Docs:** https://golang.org/doc/
@@ -887,4 +984,5 @@ Before submitting code for review:
 - **Cobra Docs:** https://cobra.dev/
 - **Viper Docs:** https://github.com/spf13/viper
 - **golangci-lint:** https://golangci-lint.run/
+- **golangci-lint v2.7.2:** https://golangci-lint.run/usage/
 
